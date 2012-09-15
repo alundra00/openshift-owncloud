@@ -402,11 +402,7 @@ $(document).ready(function(){
 	//use infield labels
 	$("label.infield").inFieldLabels();
 
-	// hide log in button etc. when form fields not filled
-	$('#submit').hide();
-	$('#remember_login').hide();
-	$('#remember_login+label').hide();
-	$('input#user, input#password').keyup(function() {
+	checkShowCredentials = function() {
 		var empty = false;
 		$('input#user, input#password').each(function() {
 			if ($(this).val() == '') {
@@ -422,7 +418,10 @@ $(document).ready(function(){
 			$('#remember_login').show();
 			$('#remember_login+label').fadeIn();
 		}
-	});
+	}
+	// hide log in button etc. when form fields not filled
+	checkShowCredentials();
+	$('input#user, input#password').keyup(checkShowCredentials);
 
 	$('#settings #expand').keydown(function(event) {
 		if (event.which == 13 || event.which == 32) {
@@ -519,5 +518,5 @@ function formatDate(date){
 	}
 	var monthNames = [ t('files','January'), t('files','February'), t('files','March'), t('files','April'), t('files','May'), t('files','June'),
 	t('files','July'), t('files','August'), t('files','September'), t('files','October'), t('files','November'), t('files','December') ];
-	return monthNames[date.getMonth()]+' '+date.getDate()+', '+date.getFullYear()+', '+((date.getHours()<10)?'0':'')+date.getHours()+':'+date.getMinutes();
+	return monthNames[date.getMonth()]+' '+date.getDate()+', '+date.getFullYear()+', '+((date.getHours()<10)?'0':'')+date.getHours()+':'+((date.getMinutes()<10)?'0':'')+date.getMinutes();
 }

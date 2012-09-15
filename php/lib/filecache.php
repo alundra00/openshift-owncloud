@@ -84,19 +84,28 @@ class OC_FileCache{
 		if($root=='/'){
 			$root='';
 		}
-		$path=$root.$path;
-		$parent=self::getParentId($path);
-		$id=self::getFileId($path);
-		if(isset(OC_FileCache::$savedData[$path])){
-			$data=array_merge(OC_FileCache::$savedData[$path],$data);
-			unset(OC_FileCache::$savedData[$path]);
+		$fullpath=$root.$path;
+		$parent=self::getParentId($fullpath);
+		$id=self::getFileId($fullpath);
+		if(isset(OC_FileCache::$savedData[$fullpath])){
+			$data=array_merge(OC_FileCache::$savedData[$fullpath],$data);
+			unset(OC_FileCache::$savedData[$fullpath]);
 		}
+		
+		// add parent directory to the file cache if it does not exist yet.
+		if ($parent == -1 && $fullpath != $root) {
+			$parentDir = substr(dirname($path), 0, strrpos(dirname($path), DIRECTORY_SEPARATOR));
+			self::scanFile($parentDir);
+			$parent = self::getParentId($fullpath);
+		}
+		
 		if($id!=-1){
 			self::update($id,$data);
 			return;
 		}
+		
 		if(!isset($data['size']) or !isset($data['mtime'])){//save incomplete data for the next time we write it
-			self::$savedData[$path]=$data;
+			self::$savedData[$fullpath]=$data;
 			return;
 		}
 		if(!isset($data['encrypted'])){
@@ -113,9 +122,9 @@ class OC_FileCache{
 		$data['versioned']=(int)$data['versioned'];
 		$user=OC_User::getUser();
 		$query=OC_DB::prepare('INSERT INTO *PREFIX*fscache(parent, name, path, path_hash, size, mtime, ctime, mimetype, mimepart,`user`,writable,encrypted,versioned) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
-		$result=$query->execute(array($parent,basename($path),$path,md5($path),$data['size'],$data['mtime'],$data['ctime'],$data['mimetype'],$mimePart,$user,$data['writable'],$data['encrypted'],$data['versioned']));
+		$result=$query->execute(array($parent,basename($fullpath),$fullpath,md5($fullpath),$data['size'],$data['mtime'],$data['ctime'],$data['mimetype'],$mimePart,$user,$data['writable'],$data['encrypted'],$data['versioned']));
 		if(OC_DB::isError($result)){
-			OC_Log::write('files','error while writing file('.$path.') to cache',OC_Log::ERROR);
+			OC_Log::write('files','error while writing file('.$fullpath.') to cache',OC_Log::ERROR);
 		}
 	}
 
@@ -256,7 +265,7 @@ class OC_FileCache{
 	 * - versioned
 	 */
   public static function getFolderContent($path,$root='',$mimetype_filter=''){
-		if(self::isUpdated($path,$root)){
+		if(self::isUpdated($path,$root,true)){
 			self::updateFolder($path,$root);
 		}
 		if(!$root){
@@ -394,7 +403,7 @@ class OC_FileCache{
 		$cachedSize=self::getCachedSize($path,$root);
 		$size=0;
 		if($dir){
-			if(self::inCache($path,$root)){
+			if(self::inCache($path,$root) && $path != '/Shared'){
 				$parent=self::getFileId($fullPath);
 				$query=OC_DB::prepare('SELECT size FROM *PREFIX*fscache WHERE parent=?');
 				$result=$query->execute(array($parent));
@@ -633,9 +642,10 @@ class OC_FileCache{
 	 * check if a file or folder is updated outside owncloud
 	 * @param string path
 	 * @param string root (optional)
+	 * @param bool folder (optional)
 	 * @return bool
 	 */
-	public static function isUpdated($path,$root=''){
+	public static function isUpdated($path,$root='',$folder=false){
 		if(!$root){
 			$root=OC_Filesystem::getRoot();
 			$view=OC_Filesystem::getView();
@@ -648,7 +658,7 @@ class OC_FileCache{
 		if(!$view->file_exists($path)){
 			return false;
 		}
-		$mtime=$view->filemtime($path);
+		$mtime=$view->filemtime($path.(($folder)?'/':''));
 		$isDir=$view->is_dir($path);
 		$fullPath=$root.$path;
 		$query=OC_DB::prepare('SELECT mtime FROM *PREFIX*fscache WHERE path_hash=?');

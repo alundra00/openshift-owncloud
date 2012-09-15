@@ -81,8 +81,8 @@ class OC_Filestorage_Shared extends OC_Filestorage {
 					$files[] = basename($item['target']);
 				}
 			}
-			OC_FakeDirStream::$dirs['shared']=$files;
-			return opendir('fakedir://shared');
+			OC_FakeDirStream::$dirs['shared'.$path] = $files;
+			return opendir('fakedir://shared'.$path);
 		} else {
 			$source = $this->getSource($path);
 			if ($source) {
@@ -416,6 +416,25 @@ class OC_Filestorage_Shared extends OC_Filestorage {
 	public function fopen($path, $mode) {
 		$source = $this->getSource($path);
 		if ($source) {
+			switch ($mode) {
+				case 'r+':
+				case 'rb+':
+				case 'w+':
+				case 'wb+':
+				case 'x+':
+				case 'xb+':
+				case 'a+':
+				case 'ab+':
+				case 'w':
+				case 'wb':
+				case 'x':
+				case 'xb':
+				case 'a':
+				case 'ab':
+					if (!$this->is_writable($path)) {
+						return false;
+					}
+			}
 			$storage = OC_Filesystem::getStorage($source);
 			return $storage->fopen($this->getInternalPath($source), $mode);
 		}
@@ -456,7 +475,7 @@ class OC_Filestorage_Shared extends OC_Filestorage {
 		}
 	}
 	
-	public function hash($type, $path, $raw) {
+	public function hash($type, $path, $raw = false) {
 		$source = $this->getSource($path);
 		if ($source) {
 			$storage = OC_Filesystem::getStorage($source);

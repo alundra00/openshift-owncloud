@@ -372,13 +372,21 @@ class OC_Filesystem{
 	
 	/**
 	 * checks if a file is blacklsited for storage in the filesystem
+	 * Listens to write and rename hooks
 	 * @param array $data from hook
 	 */
 	static public function isBlacklisted($data){
 		$blacklist = array('.htaccess');
-		$filename = strtolower(basename($data['path']));
-		if(in_array($filename,$blacklist)){
-			$data['run'] = false;	
+		if (isset($data['path'])) {
+			$path = $data['path'];
+		} else if (isset($data['newpath'])) {
+			$path = $data['newpath'];
+		}
+		if (isset($path)) {
+			$filename = strtolower(basename($path));
+			if (in_array($filename, $blacklist)) {
+				$data['run'] = false;
+			}
 		}
 	}
 	
@@ -458,8 +466,8 @@ class OC_Filesystem{
 	static public function getMimeType($path){
 		return self::$defaultInstance->getMimeType($path);
 	}
-	static public function hash($type,$path){
-		return self::$defaultInstance->hash($type,$path);
+	static public function hash($type,$path, $raw = false){
+		return self::$defaultInstance->hash($type,$path, $raw);
 	}
 	
 	static public function free_space($path='/'){

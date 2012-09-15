@@ -71,10 +71,15 @@ class OC_Contacts_Addressbook{
 	 * @return associative array
 	 */
 	public static function find($id){
-		$stmt = OCP\DB::prepare( 'SELECT * FROM *PREFIX*contacts_addressbooks WHERE id = ?' );
-		$result = $stmt->execute(array($id));
-
-		return $result->fetchRow();
+		try {
+			$stmt = OCP\DB::prepare( 'SELECT * FROM *PREFIX*contacts_addressbooks WHERE id = ?' );
+			$result = $stmt->execute(array($id));
+			return $result->fetchRow();
+		} catch(Exception $e) {
+			OCP\Util::writeLog('contacts', __CLASS__.'::'.__METHOD__.', exception: '.$e->getMessage(), OCP\Util::ERROR);
+			OCP\Util::writeLog('contacts', __CLASS__.'::'.__METHOD__.', id: '.$id, OCP\Util::DEBUG);
+			return false;
+		}
 	}
 
 	/**
@@ -169,16 +174,26 @@ class OC_Contacts_Addressbook{
 			$uid = OCP\USER::getUser();
 		}
 		$prefbooks = OCP\Config::getUserValue($uid,'contacts','openaddressbooks',null);
+		$prefbooks = explode(';',$prefbooks);
+		for ($i = 0; $i < count($prefbooks); $i++) {
+			if(!$prefbooks[$i] || !self::find($prefbooks[$i])) {
+				unset($prefbooks[$i]);
+			}
+		}
 		if(!$prefbooks){
+			OCP\Util::writeLog('contacts','OC_Contacts_Addressbook:activeIds:, No active addressbooks',OCP\Util::DEBUG);
 			$addressbooks = OC_Contacts_Addressbook::all($uid);
 			if(count($addressbooks) == 0){
-				OC_Contacts_Addressbook::add($uid,'default','Default Address Book');
+				OCP\Util::writeLog('contacts','OC_Contacts_Addressbook:activeIds:, No addressbooks',OCP\Util::DEBUG);
+				$id = self::add($uid,'default','Default Address Book');
+				OCP\Util::writeLog('contacts','OC_Contacts_Addressbook:activeIds:, Created addressbook: '.$id,OCP\Util::DEBUG);
+				self::setActive($id, true);
 				$addressbooks = OC_Contacts_Addressbook::all($uid);
 			}
-			$prefbooks = $addressbooks[0]['id'];
-			OCP\Config::setUserValue($uid,'contacts','openaddressbooks',$prefbooks);
+			$prefbooks[] = $addressbooks[0]['id'];
+			OCP\Config::setUserValue($uid,'contacts','openaddressbooks',implode(';',$prefbooks));
 		}
-		return explode(';',$prefbooks);
+		return $prefbooks;
 	}
 
 	/**
@@ -189,19 +204,22 @@ class OC_Contacts_Addressbook{
 	public static function active($uid){
 		$active = self::activeIds($uid);
 		$addressbooks = array();
+		if(!$active) {
+			return $addressbooks;
+		}
 		$ids_sql = join(',', array_fill(0, count($active), '?'));
 		$prep = 'SELECT * FROM *PREFIX*contacts_addressbooks WHERE id IN ('.$ids_sql.') ORDER BY displayname';
 		try {
 			$stmt = OCP\DB::prepare( $prep );
 			$result = $stmt->execute($active);
+			while( $row = $result->fetchRow()){
+				$addressbooks[] = $row;
+			}
 		} catch(Exception $e) {
 			OCP\Util::writeLog('contacts','OC_Contacts_Addressbook:active:, exception: '.$e->getMessage(),OCP\Util::DEBUG);
 			OCP\Util::writeLog('contacts','OC_Contacts_Addressbook:active, ids: '.join(',', $active),OCP\Util::DEBUG);
 			OCP\Util::writeLog('contacts','OC_Contacts_Addressbook::active, SQL:'.$prep,OCP\Util::DEBUG);
-		}
-
-		while( $row = $result->fetchRow()){
-			$addressbooks[] = $row;
+			return array();
 		}
 
 		return $addressbooks;
@@ -213,7 +231,7 @@ class OC_Contacts_Addressbook{
 	 * @param integer $name
 	 * @return boolean
 	 */
-	public static function setActive($id,$active){
+	public static function setActive($id,$active=true){
 		// Need these ones for checking uri
 		//$addressbook = self::find($id);
 
@@ -226,7 +244,7 @@ class OC_Contacts_Addressbook{
 			if(!in_array($id, $openaddressbooks)) {
 				$openaddressbooks[] = $id;
 			}
-		} else { 
+		} else {
 			if(in_array($id, $openaddressbooks)) {
 				unset($openaddressbooks[array_search($id, $openaddressbooks)]);
 			}

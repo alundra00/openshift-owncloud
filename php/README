@@ -11,5 +11,3 @@ IRC channel: http://webchat.freenode.net/?channels=owncloud
 Diaspora: https://joindiaspora.com/u/owncloud
 Identi.ca: http://identi.ca/owncloud
 
-For openshift remember to remove php/index.php from new 
-instance before merging this repository
